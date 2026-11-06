@@ -1,6 +1,6 @@
 # 🛡️ Sistem Aplikasi Rasmi Polis Bantuan UTeM
 
-Aplikasi web mudah alih (Single-Page Application) khusus untuk warga **Polis Bantuan Universiti Teknikal Malaysia Melaka (UTeM)** bagi menguruskan dokumentasi harian, buku poket, laporan formal, repot polis, dan perharian balai dengan pantas, teratur, dan patuh piawaian rasmi.
+Aplikasi web mudah alih (Single-Page Application) khusus untuk warga **Polis Bantuan** bagi menguruskan dokumentasi harian, buku poket, laporan formal, repot polis, dan perharian balai dengan pantas, teratur, dan patuh piawaian rasmi.
 
 ---
 
