@@ -36,11 +36,13 @@ jobs:
           mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
           rm cmdline-tools.zip
 
-          yes y | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
-          yes y | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-34" "platforms;android-35" "build-tools;34.0.0" "build-tools;35.0.0"
-
-          mkdir -p "$ANDROID_SDK_ROOT/licenses"
-          cp -rn "$ANDROID_SDK_ROOT/licenses"/* "$ANDROID_SDK_ROOT/licenses/" 2>/dev/null || true
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" \
+            "platform-tools" \
+            "platforms;android-34" \
+            "platforms;android-35" \
+            "build-tools;34.0.0" \
+            "build-tools;35.0.0"
 
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
@@ -61,13 +63,29 @@ jobs:
       - name: Cipta konfigurasi Bubblewrap & Bina APK
         run: |
           set -e
+          mkdir -p "$HOME/.bubblewrap"
+          cat <<EOF > "$HOME/.bubblewrap/config.json"
+          {
+            "jdkPath": "${JAVA_HOME}",
+            "androidSdkPath": "${ANDROID_SDK_ROOT}"
+          }
+          EOF
+
           mkdir -p "$GITHUB_WORKSPACE/twa-project"
           cd "$GITHUB_WORKSPACE/twa-project"
 
-          yes y | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
 
           if [ ! -f "twa-manifest.json" ]; then
-            printf 'y\ny\ny\ny\ny\ny\ny\ny\ny\ny\n' | bubblewrap init --manifest="https://kimsoju81.github.io/PB-Repot/manifest.json" --directory="." --jdkPath="$JAVA_HOME" --androidSdkPath="$ANDROID_HOME" --signingKeyPath="$GITHUB_WORKSPACE/android.keystore" --signingKeyAlias="pbrepotkey" --storePassword="pbrepot123" --keyPassword="pbrepot123" || true
+            printf 'n\nn\nn\nn\nn\nn\nn\nn\nn\nn\n' | bubblewrap init \
+              --manifest="https://kimsoju81.github.io/PB-Repot/manifest.json" \
+              --directory="." \
+              --jdkPath="$JAVA_HOME" \
+              --androidSdkPath="$ANDROID_SDK_ROOT" \
+              --signingKeyPath="$GITHUB_WORKSPACE/android.keystore" \
+              --signingKeyAlias="pbrepotkey" \
+              --storePassword="pbrepot123" \
+              --keyPassword="pbrepot123" || true
           fi
 
           if [ ! -f "twa-manifest.json" ]; then
@@ -75,7 +93,7 @@ jobs:
             exit 1
           fi
 
-          yes y | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
           bubblewrap build --skipPwaValidation
 
       - name: Muat Naik Fail APK sebagai Artifact
