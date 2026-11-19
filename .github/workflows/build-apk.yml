@@ -1,4 +1,4 @@
-name: Bina PBRepot TWA APK
+name: Bina PB-Repot TWA APK
 
 on:
   workflow_dispatch:
@@ -55,7 +55,7 @@ jobs:
         run: |
           set -e
           if [ -n "${{ secrets.PBREPOT_KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.PBREPOT_KEYSTORE_BASE64 }}" | base64 -d > "$GITHUB_WORKSPACE/android.keystore"
+            echo "${{ secrets.PBREPOT_KEYSTORE_BASE64 }}" \vert{} base64 -d > "$GITHUB_WORKSPACE/android.keystore"
           else
             keytool -genkeypair -v \
               -keystore "$GITHUB_WORKSPACE/android.keystore" \
@@ -65,46 +65,4 @@ jobs:
               -validity 10000 \
               -storepass pbrepot123 \
               -keypass pbrepot123 \
-              -dname "CN=PBRepot, OU=Development, O=PBRepot, L=Melaka, ST=Melaka, C=MY"
-          fi
-
-      - name: Cipta konfigurasi Bubblewrap & Bina APK
-        run: |
-          set -e
-          mkdir -p "$GITHUB_WORKSPACE/twa-project"
-          cd "$GITHUB_WORKSPACE/twa-project"
-
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
-
-          bubblewrap init \
-            --manifest="https://kimsoju81.github.io/PBRepot/manifest.json" \
-            --directory="." \
-            --jdkPath="$JAVA_HOME" \
-            --androidSdkPath="$ANDROID_HOME" \
-            --signingKeyPath="$GITHUB_WORKSPACE/android.keystore" \
-            --signingKeyAlias="pbrepotkey" \
-            --storePassword="pbrepot123" \
-            --keyPassword="pbrepot123" \
-            < /dev/null || true
-
-          if [ ! -f "twa-manifest.json" ]; then
-            printf 'n\n' | bubblewrap init \
-              --manifest="https://kimsoju81.github.io/PBRepot/manifest.json" \
-              --directory="." \
-              --jdkPath="$JAVA_HOME" \
-              --androidSdkPath="$ANDROID_HOME" \
-              --signingKeyPath="$GITHUB_WORKSPACE/android.keystore" \
-              --signingKeyAlias="pbrepotkey" \
-              --storePassword="pbrepot123" \
-              --keyPassword="pbrepot123"
-          fi
-
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
-          bubblewrap build --skipPwaValidation
-
-      - name: Muat Naik Fail APK sebagai Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: DePBDeraAndroid-APK
-          path: twa-project/**/*.apk
-          
+              -dname "CN=PB-Repot, OU=Development,
