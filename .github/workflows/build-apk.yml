@@ -74,26 +74,69 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/twa-project"
           cd "$GITHUB_WORKSPACE/twa-project"
 
+          node -e '
+            const https = require("https");
+            const fs = require("fs");
+            const manifestUrl = "https://kimsoju81.github.io/PB-Repot/manifest.json";
+
+            https.get(manifestUrl, (res) => {
+              let data = "";
+              res.on("data", chunk => data += chunk);
+              res.on("end", () => {
+                const webManifest = JSON.parse(data);
+                const twaManifest = {
+                  packageId: "org.kimsoju81.pbrepot.twa",
+                  host: "kimsoju81.github.io",
+                  name: webManifest.name || "PB-Repot",
+                  launcherName: webManifest.short_name || "PB-Repot",
+                  display: webManifest.display || "standalone",
+                  themeColor: webManifest.theme_color || "#001F3F",
+                  themeColorDark: webManifest.theme_color || "#001F3F",
+                  navigationColor: webManifest.background_color || "#ffffff",
+                  navigationColorDark: webManifest.background_color || "#000000",
+                  navigationDividerColor: "#000000",
+                  navigationDividerColorDark: "#000000",
+                  backgroundColor: webManifest.background_color || "#ffffff",
+                  enableNotifications: false,
+                  startUrl: webManifest.start_url || "/PB-Repot/",
+                  iconUrl: "https://kimsoju81.github.io/PB-Repot/icons/icon-512.png",
+                  maskableIconUrl: "https://kimsoju81.github.io/PB-Repot/icons/icon-512.png",
+                  splashScreenFadeOutDuration: 300,
+                  signingKey: {
+                    path: process.env.GITHUB_WORKSPACE + "/android.keystore",
+                    alias: "pbrepotkey"
+                  },
+                  appVersionName: "1.0.0",
+                  appVersionCode: 1,
+                  shortcuts: [],
+                  generatorApp: "bubblewrap-cli",
+                  webManifestUrl: manifestUrl,
+                  fallbackType: "customtabs",
+                  features: {},
+                  alphaDependencies: {
+                    enabled: false
+                  },
+                  enableSiteSettingsShortcut: true,
+                  isChromeOSOnly: false,
+                  isMetaQuest: false,
+                  fullScopeUrl: "https://kimsoju81.github.io/PB-Repot/",
+                  minSdkVersion: 21,
+                  orientation: webManifest.orientation || "default",
+                  fingerprints: [],
+                  additionalTrustedOrigins: [],
+                  retainedHashes: []
+                };
+                fs.writeFileSync("twa-manifest.json", JSON.stringify(twaManifest, null, 2));
+                console.log("Berjaya menjana twa-manifest.json");
+              });
+            }).on("error", (err) => {
+              console.error("Gagal memuat turun manifest:", err.message);
+              process.exit(1);
+            });
+          '
+
           yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
-
-          if [ ! -f "twa-manifest.json" ]; then
-            printf 'n\nn\nn\nn\nn\nn\nn\nn\nn\nn\n' | bubblewrap init \
-              --manifest="https://kimsoju81.github.io/PB-Repot/manifest.json" \
-              --directory="." \
-              --jdkPath="$JAVA_HOME" \
-              --androidSdkPath="$ANDROID_SDK_ROOT" \
-              --signingKeyPath="$GITHUB_WORKSPACE/android.keystore" \
-              --signingKeyAlias="pbrepotkey" \
-              --storePassword="pbrepot123" \
-              --keyPassword="pbrepot123" || true
-          fi
-
-          if [ ! -f "twa-manifest.json" ]; then
-            echo "Gagal menjana twa-manifest.json. Semak akses ke https://kimsoju81.github.io/PB-Repot/manifest.json"
-            exit 1
-          fi
-
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
+          bubblewrap update --skipPwaValidation
           bubblewrap build --skipPwaValidation
 
       - name: Muat Naik Fail APK sebagai Artifact
