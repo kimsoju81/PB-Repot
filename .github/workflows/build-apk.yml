@@ -37,12 +37,7 @@ jobs:
           rm cmdline-tools.zip
 
           yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" \
-            "platform-tools" \
-            "platforms;android-34" \
-            "platforms;android-35" \
-            "build-tools;34.0.0" \
-            "build-tools;35.0.0"
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-34" "platforms;android-35" "build-tools;34.0.0" "build-tools;35.0.0"
 
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
@@ -55,14 +50,33 @@ jobs:
         run: |
           set -e
           if [ -n "${{ secrets.PBREPOT_KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.PBREPOT_KEYSTORE_BASE64 }}" \vert{} base64 -d > "$GITHUB_WORKSPACE/android.keystore"
+            echo "${{ secrets.PBREPOT_KEYSTORE_BASE64 }}" | base64 -d > "$GITHUB_WORKSPACE/android.keystore"
           else
-            keytool -genkeypair -v \
-              -keystore "$GITHUB_WORKSPACE/android.keystore" \
-              -alias pbrepotkey \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass pbrepot123 \
-              -keypass pbrepot123 \
-              -dname "CN=PB-Repot, OU=Development,
+            keytool -genkeypair -v -keystore "$GITHUB_WORKSPACE/android.keystore" -alias pbrepotkey -keyalg RSA -keysize 2048 -validity 10000 -storepass pbrepot123 -keypass pbrepot123 -dname "CN=PB-Repot, OU=Development, O=PB-Repot, L=Melaka, ST=Melaka, C=MY"
+          fi
+
+      - name: Cipta konfigurasi Bubblewrap & Bina APK
+        run: |
+          set -e
+          mkdir -p "$GITHUB_WORKSPACE/twa-project"
+          cd "$GITHUB_WORKSPACE/twa-project"
+
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
+
+          if [ ! -f "twa-manifest.json" ]; then
+            yes "" | bubblewrap init --manifest="https://kimsoju81.github.io/PB-Repot/manifest.json" --directory="." --jdkPath="$JAVA_HOME" --androidSdkPath="$ANDROID_HOME" --signingKeyPath="$GITHUB_WORKSPACE/android.keystore" --signingKeyAlias="pbrepotkey" --storePassword="pbrepot123" --keyPassword="pbrepot123" || true
+          fi
+
+          if [ ! -f "twa-manifest.json" ]; then
+            echo "Gagal menjana twa-manifest.json. Semak akses ke https://kimsoju81.github.io/PB-Repot/manifest.json"
+            exit 1
+          fi
+
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
+          bubblewrap build --skipPwaValidation
+
+      - name: Muat Naik Fail APK sebagai Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PB-Repot-Android-APK
+          path: twa-project/**/*.apk
