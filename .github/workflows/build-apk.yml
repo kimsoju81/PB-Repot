@@ -172,8 +172,15 @@ jobs:
           '
 
           yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
-          bubblewrap update --skipPwaValidation
-          yes "$KEYSTORE_PASS" | bubblewrap build --skipPwaValidation
+
+          export BUBBLEWRAP_KEYSTORE_PASSWORD="$KEYSTORE_PASS"
+          export BUBBLEWRAP_KEY_PASSWORD="$KEYSTORE_PASS"
+
+          if [ ! -f "build.gradle" ] && [ ! -f "app/build.gradle" ]; then
+            bubblewrap init --manifest="./twa-manifest.json" --skipPwaValidation
+          fi
+
+          bubblewrap build --skipPwaValidation
 
       - name: Muat Naik Fail APK sebagai Artifact
         uses: actions/upload-artifact@v4
