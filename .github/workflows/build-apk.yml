@@ -84,6 +84,12 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/twa-project"
           cd "$GITHUB_WORKSPACE/twa-project"
 
+          manifestUrl="https://kimsoju81.github.io/PB-Repot/manifest.json"
+
+          if [ ! -f "build.gradle" ] && [ ! -f "app/build.gradle" ]; then
+            bubblewrap init --manifest="$manifestUrl" --skipPwaValidation < /dev/null
+          fi
+
           node -e '
             const https = require("https");
             const fs = require("fs");
@@ -115,11 +121,18 @@ jobs:
                   process.exit(1);
                 }
 
+                let existing = {};
+                if (fs.existsSync("twa-manifest.json")) {
+                  try {
+                    existing = JSON.parse(fs.readFileSync("twa-manifest.json", "utf8"));
+                  } catch (_) {}
+                }
+
                 const icons = Array.isArray(webManifest.icons) ? webManifest.icons : [];
                 const bestIcon = icons.find(i => i.sizes && i.sizes.includes("512x512")) || icons[icons.length - 1] || {};
                 const resolvedIconUrl = resolveUrl(bestIcon.src, "https://kimsoju81.github.io/PB-Repot/icons/icon-512.png");
 
-                const twaManifest = {
+                const twaManifest = Object.assign({}, existing, {
                   packageId: "studio.ai.pbrepot.twa",
                   host: appHost,
                   name: webManifest.name || "PB-Repot",
@@ -141,8 +154,8 @@ jobs:
                     path: process.env.GITHUB_WORKSPACE + "/android.keystore",
                     alias: "pbrepotkey"
                   },
-                  appVersionName: "1.0.0",
-                  appVersionCode: 1,
+                  appVersionName: existing.appVersionName || "1.0.0",
+                  appVersionCode: existing.appVersionCode || 1,
                   shortcuts: [],
                   generatorApp: "bubblewrap-cli",
                   webManifestUrl: manifestUrl,
@@ -157,10 +170,10 @@ jobs:
                   fullScopeUrl: appBaseUrl + "/",
                   minSdkVersion: 21,
                   orientation: webManifest.orientation || "default",
-                  fingerprints: [],
+                  fingerprints: existing.fingerprints || [],
                   additionalTrustedOrigins: [],
-                  retainedHashes: []
-                };
+                  retainedHashes: existing.retainedHashes || []
+                });
 
                 fs.writeFileSync("twa-manifest.json", JSON.stringify(twaManifest, null, 2));
                 console.log("Berjaya menjana twa-manifest.json untuk", appHost);
@@ -176,11 +189,8 @@ jobs:
           export BUBBLEWRAP_KEYSTORE_PASSWORD="$KEYSTORE_PASS"
           export BUBBLEWRAP_KEY_PASSWORD="$KEYSTORE_PASS"
 
-          if [ ! -f "build.gradle" ] && [ ! -f "app/build.gradle" ]; then
-            bubblewrap init --manifest="./twa-manifest.json" --skipPwaValidation
-          fi
-
-          bubblewrap build --skipPwaValidation
+          bubblewrap update --skipPwaValidation < /dev/null
+          bubblewrap build --skipPwaValidation < /dev/null
 
       - name: Muat Naik Fail APK sebagai Artifact
         uses: actions/upload-artifact@v4
