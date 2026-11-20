@@ -87,7 +87,7 @@ jobs:
           manifestUrl="https://kimsoju81.github.io/PB-Repot/manifest.json"
 
           if [ ! -f "build.gradle" ] && [ ! -f "app/build.gradle" ]; then
-            (while true; do echo ""; done) | bubblewrap init --manifest="$manifestUrl" --skipPwaValidation || true
+            printf "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" | bubblewrap init --manifest="$manifestUrl" --skipPwaValidation || true
           fi
 
           node -e '
@@ -189,8 +189,8 @@ jobs:
           export BUBBLEWRAP_KEYSTORE_PASSWORD="$KEYSTORE_PASS"
           export BUBBLEWRAP_KEY_PASSWORD="$KEYSTORE_PASS"
 
-          (while true; do echo ""; done) | bubblewrap update --skipPwaValidation || true
-          (while true; do printf "%s\n" "$KEYSTORE_PASS"; done) | bubblewrap build --skipPwaValidation
+          printf "\n\n\n\n\n\n\n\n\n\n" | bubblewrap update --skipPwaValidation || true
+          printf "%s\n%s\n\n\n\n\n" "$KEYSTORE_PASS" "$KEYSTORE_PASS" | bubblewrap build --skipPwaValidation
 
       - name: Muat Naik Fail APK sebagai Artifact
         uses: actions/upload-artifact@v4
