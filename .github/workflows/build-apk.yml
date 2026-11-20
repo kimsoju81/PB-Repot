@@ -1,4 +1,4 @@
-name: Bina PB-Repot TWA APK
+name: Bina PB-Repot Android APK
 
 on:
   workflow_dispatch:
@@ -13,10 +13,10 @@ jobs:
 
     steps:
       - name: Checkout repositori
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Sediakan Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
 
@@ -39,55 +39,34 @@ jobs:
             mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
           fi
           chmod -R +x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin"
-
           (printf 'y\n%.0s' {1..50}) | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null 2>&1 || true
-          (printf 'y\n%.0s' {1..50}) | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" \
-            "platform-tools" \
-            "platforms;android-34" \
-            "platforms;android-35" \
-            "build-tools;34.0.0" \
-            "build-tools;35.0.0"
-
+          (printf 'y\n%.0s' {1..50}) | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
 
-      - name: Pasang Bubblewrap CLI
-        run: npm install -g @bubblewrap/cli
-
-      - name: Sediakan Keystore Tandatangan APK
+      - name: Jana Keystore Tandatangan APK PB-Repot
         run: |
           set -e
           KEYSTORE_PASS="${{ secrets.PBREPOT_KEYSTORE_PASSWORD || 'pbrepot123' }}"
           if [ -n "${{ secrets.PBREPOT_KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.PBREPOT_KEYSTORE_BASE64 }}" | base64 -d > "$GITHUB_WORKSPACE/android.keystore"
+            echo "${{ secrets.PBREPOT_KEYSTORE_BASE64 }}" | base64 -d > "$GITHUB_WORKSPACE/pbrepot-android.keystore"
           else
-            keytool -genkeypair -v \
-              -keystore "$GITHUB_WORKSPACE/android.keystore" \
-              -alias pbrepotkey \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass "$KEYSTORE_PASS" \
-              -keypass "$KEYSTORE_PASS" \
-              -dname "CN=PB-Repot, OU=Polis Bantuan, O=PB-Repot, L=Melaka, ST=Melaka, C=MY"
+            keytool -genkeypair -v -keystore "$GITHUB_WORKSPACE/pbrepot-android.keystore" -alias pbrepotkey -keyalg RSA -keysize 2048 -validity 10000 -storepass "$KEYSTORE_PASS" -keypass "$KEYSTORE_PASS" -dname "CN=PB-Repot, OU=Polis Bantuan, O=PB-Repot, L=Melaka, ST=Melaka, C=MY"
           fi
           echo "KEYSTORE_PASS=$KEYSTORE_PASS" >> "$GITHUB_ENV"
 
-      - name: Cipta konfigurasi Bubblewrap & Bina APK
+      - name: Bina Projek Android & APK PB-Repot
         run: |
           set -e
-          SDK_DIR="$HOME/android-sdk"
-          mkdir -p "$HOME/.bubblewrap"
-          cat <<EOF > "$HOME/.bubblewrap/config.json"
-          {
-            "jdkPath": "${JAVA_HOME}",
-            "androidSdkPath": "${SDK_DIR}"
-          }
-          EOF
-
-          mkdir -p "$GITHUB_WORKSPACE/twa-project"
-          cd "$GITHUB_WORKSPACE/twa-project"
+          mkdir -p "$GITHUB_WORKSPACE/pbrepot-project/app/src/main/java/org/pbrepot/app" "$GITHUB_WORKSPACE/pbrepot-project/app/src/main/res/values"
+          cd "$GITHUB_WORKSPACE/pbrepot-project"
+          export ANDROID_HOME="$HOME/android-sdk"
+          printf "sdk.dir=%s\n" "$ANDROID_HOME" > local.properties
+          printf "rootProject.name = 'PBRepotApp'\ninclude ':app'\n" > settings.gradle
+          printf "buildscript {\n    repositories {\n        google()\n        mavenCentral()\n    }\n    dependencies {\n        classpath 'com.android.tools.build:gradle:8.1.4'\n    }\n}\n\nallprojects {\n    repositories {\n        google()\n        mavenCentral()\n    }\n}\n" > build.gradle
+          printf "plugins {\n    id 'com.android.application'\n}\n\nandroid {\n    namespace 'org.pbrepot.app'\n    compileSdk 34\n\n    defaultConfig {\n        applicationId \"org.pbrepot.app\"\n        minSdk 21\n        targetSdk 34\n        versionCode 1\n        versionName \"1.0.0\"\n    }\n\n    signingConfigs {\n        release {\n            storeFile file(\"%s/pbrepot-android.keystore\")\n            storePassword \"%s\"\n            keyAlias \"pbrepotkey\"\n            keyPassword \"%s\"\n        }\n    }\n\n    buildTypes {\n        release {\n            signingConfig signingConfigs.release\n            minifyEnabled false\n        }\n    }\n\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_17\n        targetCompatibility JavaVersion.VERSION_17\n    }\n}\n" "$GITHUB_WORKSPACE" "$KEYSTORE_PASS" "$KEYSTORE_PASS" > app/build.gradle
+          printf "<resources>\n    <string name=\"app_name\">PB-Repot</string>\n</resources>\n" > app/src/main/res/values/strings.xml
 
           node -e '
             const fs = require("fs");
@@ -114,8 +93,7 @@ jobs:
               return Buffer.concat([len, typeBuf, data, crcBuf]);
             }
 
-            function makePng512() {
-              const size = 512;
+            function makePBRepotPng(size) {
               const raw = Buffer.alloc(size * (1 + size * 4));
               for (let y = 0; y < size; y++) {
                 const rowStart = y * (1 + size * 4);
@@ -124,11 +102,11 @@ jobs:
                   const px = rowStart + 1 + x * 4;
                   const nx = x / size;
                   const ny = y / size;
-                  const inBadge = nx >= 0.14 && nx <= 0.86 && ny >= 0.14 && ny <= 0.86;
-                  const inBarTop = inBadge && nx >= 0.28 && nx <= 0.72 && ny >= 0.30 && ny <= 0.40;
-                  const inBarMid = inBadge && nx >= 0.28 && nx <= 0.62 && ny >= 0.46 && ny <= 0.55;
-                  const inBarBot = inBadge && nx >= 0.28 && nx <= 0.72 && ny >= 0.61 && ny <= 0.70;
-                  if (inBarTop || inBarMid || inBarBot) {
+                  const inPad = nx >= 0.14 && nx <= 0.86 && ny >= 0.14 && ny <= 0.86;
+                  const inLine1 = inPad && nx >= 0.26 && nx <= 0.74 && ny >= 0.28 && ny <= 0.38;
+                  const inLine2 = inPad && nx >= 0.26 && nx <= 0.64 && ny >= 0.45 && ny <= 0.55;
+                  const inLine3 = inPad && nx >= 0.26 && nx <= 0.74 && ny >= 0.62 && ny <= 0.72;
+                  if (inLine1 || inLine2 || inLine3) {
                     raw[px] = 255;
                     raw[px + 1] = 255;
                     raw[px + 2] = 255;
@@ -157,144 +135,35 @@ jobs:
               ]);
             }
 
-            fs.writeFileSync(path.join(process.cwd(), "icon-512.png"), makePng512());
+            const sizes = {
+              "mipmap-mdpi": 48,
+              "mipmap-hdpi": 72,
+              "mipmap-xhdpi": 96,
+              "mipmap-xxhdpi": 144,
+              "mipmap-xxxhdpi": 192
+            };
+
+            for (const [folder, sz] of Object.entries(sizes)) {
+              const dir = path.join("app/src/main/res", folder);
+              fs.mkdirSync(dir, { recursive: true });
+              const png = makePBRepotPng(sz);
+              fs.writeFileSync(path.join(dir, "ic_launcher.png"), png);
+              fs.writeFileSync(path.join(dir, "ic_launcher_round.png"), png);
+            }
           '
 
-          ICON_LOCAL_FILE="file://$GITHUB_WORKSPACE/twa-project/icon-512.png"
+          printf "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">\n    <uses-permission android:name=\"android.permission.INTERNET\" />\n    <uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\" />\n    <application\n        android:allowBackup=\"true\"\n        android:icon=\"@mipmap/ic_launcher\"\n        android:roundIcon=\"@mipmap/ic_launcher_round\"\n        android:label=\"@string/app_name\"\n        android:supportsRtl=\"true\"\n        android:usesCleartextTraffic=\"true\"\n        android:theme=\"@android:style/Theme.DeviceDefault.Light.NoActionBar\">\n        <activity android:name=\".MainActivity\" android:exported=\"true\" android:configChanges=\"orientation|screenSize|keyboardHidden\">\n            <intent-filter>\n                <action android:name=\"android.intent.action.MAIN\" />\n                <category android:name=\"android.intent.category.LAUNCHER\" />\n            </intent-filter>\n        </activity>\n    </application>\n</manifest>\n" > app/src/main/AndroidManifest.xml
+          printf "package org.pbrepot.app;\n\nimport android.app.Activity;\nimport android.graphics.Color;\nimport android.os.Bundle;\nimport android.webkit.WebChromeClient;\nimport android.webkit.WebSettings;\nimport android.webkit.WebView;\nimport android.webkit.WebViewClient;\n\npublic class MainActivity extends Activity {\n    @Override\n    protected void onCreate(Bundle savedInstanceState) {\n        super.onCreate(savedInstanceState);\n        WebView webView = new WebView(this);\n        webView.setBackgroundColor(Color.WHITE);\n        WebSettings settings = webView.getSettings();\n        settings.setJavaScriptEnabled(true);\n        settings.setDomStorageEnabled(true);\n        settings.setDatabaseEnabled(true);\n        settings.setLoadWithOverviewMode(true);\n        settings.setUseWideViewPort(true);\n        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);\n        webView.setWebChromeClient(new WebChromeClient());\n        webView.setWebViewClient(new WebViewClient());\n        setContentView(webView);\n        webView.loadUrl(\"https://pbrepot.ai.studio/\");\n    }\n}\n" > app/src/main/java/org/pbrepot/app/MainActivity.java
+          rm -rf /opt/gradle/gradle-8.4 gradle.zip
+          mkdir -p /opt/gradle
+          curl -fsSL https://services.gradle.org/distributions/gradle-8.4-bin.zip -o gradle.zip
+          unzip -q gradle.zip -d /opt/gradle
+          rm -f gradle.zip
+          chmod +x /opt/gradle/gradle-8.4/bin/gradle
+          /opt/gradle/gradle-8.4/bin/gradle assembleRelease --no-daemon
 
-          manifestUrl="https://kimsoju81.github.io/PB-Repot/manifest.json"
-
-          if [ ! -f "build.gradle" ] && [ ! -f "app/build.gradle" ]; then
-            printf "kimsoju81.github.io\n/PB-Repot/index.html\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" | bubblewrap init --manifest="$manifestUrl" --skipPwaValidation || true
-          fi
-
-          node -e '
-            const https = require("https");
-            const fs = require("fs");
-
-            const appHost = "pbrepot.ai.studio";
-            const appBaseUrl = "https://" + appHost;
-            const manifestUrl = "https://kimsoju81.github.io/PB-Repot/manifest.json";
-            const localIconUrl = process.env.ICON_LOCAL_FILE || "file://" + process.cwd() + "/icon-512.png";
-
-            https.get(manifestUrl, (res) => {
-              let data = "";
-              res.on("data", chunk => data += chunk);
-              res.on("end", () => {
-                let webManifest = {};
-                try {
-                  webManifest = JSON.parse(data);
-                } catch (_) {}
-
-                let existing = {};
-                if (fs.existsSync("twa-manifest.json")) {
-                  try {
-                    existing = JSON.parse(fs.readFileSync("twa-manifest.json", "utf8"));
-                  } catch (_) {}
-                }
-
-                const twaManifest = Object.assign({}, existing, {
-                  packageId: "studio.ai.pbrepot.twa",
-                  host: appHost,
-                  name: webManifest.name || "PB-Repot",
-                  launcherName: webManifest.short_name || "PB-Repot",
-                  display: webManifest.display || "standalone",
-                  themeColor: webManifest.theme_color || "#001F3F",
-                  themeColorDark: webManifest.theme_color || "#001F3F",
-                  navigationColor: webManifest.background_color || "#ffffff",
-                  navigationColorDark: webManifest.background_color || "#000000",
-                  navigationDividerColor: "#000000",
-                  navigationDividerColorDark: "#000000",
-                  backgroundColor: webManifest.background_color || "#ffffff",
-                  enableNotifications: false,
-                  startUrl: "/",
-                  iconUrl: localIconUrl,
-                  maskableIconUrl: localIconUrl,
-                  splashScreenFadeOutDuration: 300,
-                  signingKey: {
-                    path: process.env.GITHUB_WORKSPACE + "/android.keystore",
-                    alias: "pbrepotkey"
-                  },
-                  appVersionName: existing.appVersionName || "1.0.0",
-                  appVersionCode: existing.appVersionCode || 1,
-                  shortcuts: [],
-                  generatorApp: "bubblewrap-cli",
-                  webManifestUrl: manifestUrl,
-                  fallbackType: "customtabs",
-                  features: {},
-                  alphaDependencies: {
-                    enabled: false
-                  },
-                  enableSiteSettingsShortcut: true,
-                  isChromeOSOnly: false,
-                  isMetaQuest: false,
-                  fullScopeUrl: appBaseUrl + "/",
-                  minSdkVersion: 21,
-                  orientation: webManifest.orientation || "default",
-                  fingerprints: existing.fingerprints || [],
-                  additionalTrustedOrigins: [],
-                  retainedHashes: existing.retainedHashes || []
-                });
-
-                fs.writeFileSync("twa-manifest.json", JSON.stringify(twaManifest, null, 2));
-                console.log("Berjaya menjana twa-manifest.json untuk", appHost);
-              });
-            }).on("error", () => {
-              const twaManifest = {
-                packageId: "studio.ai.pbrepot.twa",
-                host: appHost,
-                name: "PB-Repot",
-                launcherName: "PB-Repot",
-                display: "standalone",
-                themeColor: "#001F3F",
-                themeColorDark: "#001F3F",
-                navigationColor: "#ffffff",
-                navigationColorDark: "#000000",
-                navigationDividerColor: "#000000",
-                navigationDividerColorDark: "#000000",
-                backgroundColor: "#ffffff",
-                enableNotifications: false,
-                startUrl: "/",
-                iconUrl: localIconUrl,
-                maskableIconUrl: localIconUrl,
-                splashScreenFadeOutDuration: 300,
-                signingKey: {
-                  path: process.env.GITHUB_WORKSPACE + "/android.keystore",
-                  alias: "pbrepotkey"
-                },
-                appVersionName: "1.0.0",
-                appVersionCode: 1,
-                shortcuts: [],
-                generatorApp: "bubblewrap-cli",
-                webManifestUrl: manifestUrl,
-                fallbackType: "customtabs",
-                features: {},
-                alphaDependencies: {
-                  enabled: false
-                },
-                enableSiteSettingsShortcut: true,
-                isChromeOSOnly: false,
-                isMetaQuest: false,
-                fullScopeUrl: appBaseUrl + "/",
-                minSdkVersion: 21,
-                orientation: "default",
-                fingerprints: [],
-                additionalTrustedOrigins: [],
-                retainedHashes: []
-              };
-              fs.writeFileSync("twa-manifest.json", JSON.stringify(twaManifest, null, 2));
-            });
-          '
-
-          ls -la "$SDK_DIR" "$SDK_DIR/build-tools" "$SDK_DIR/platforms" || true
-
-          (printf 'y\n%.0s' {1..50}) | "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_DIR" --licenses >/dev/null 2>&1 || true
-
-          printf "1.0.0\n\n\n\n\n" | bubblewrap update --skipPwaValidation || true
-          printf "%s\n%s\n\n\n\n\n" "$KEYSTORE_PASS" "$KEYSTORE_PASS" | bubblewrap build --skipPwaValidation
-
-      - name: Muat Naik Fail APK sebagai Artifact
-        uses: actions/upload-artifact@v4
+      - name: Muat Naik Fail APK PB-Repot sebagai Artifact
+        uses: actions/upload-artifact@v5
         with:
-          name: PB-Repot-AIStudio-APK
-          path: twa-project/**/*.apk
+          name: PB-Repot-Android-APK
+          path: pbrepot-project/**/*.apk
