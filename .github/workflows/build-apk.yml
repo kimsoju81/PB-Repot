@@ -88,15 +88,15 @@ jobs:
             const https = require("https");
             const fs = require("fs");
 
-            const targetHost = "pbrepot.ai.studio";
-            const baseUrl = "https://" + targetHost;
-            const manifestUrl = baseUrl + "/manifest.json";
+            const appHost = "pbrepot.ai.studio";
+            const appBaseUrl = "https://" + appHost;
+            const manifestUrl = "https://kimsoju81.github.io/PB-Repot/manifest.json";
 
             function resolveUrl(u, fallback) {
               if (!u) return fallback;
               if (u.startsWith("http://") || u.startsWith("https://")) return u;
-              if (u.startsWith("/")) return baseUrl + u;
-              return baseUrl + "/" + u;
+              if (u.startsWith("/")) return "https://kimsoju81.github.io" + u;
+              return "https://kimsoju81.github.io/PB-Repot/" + u;
             }
 
             https.get(manifestUrl, (res) => {
@@ -117,23 +117,11 @@ jobs:
 
                 const icons = Array.isArray(webManifest.icons) ? webManifest.icons : [];
                 const bestIcon = icons.find(i => i.sizes && i.sizes.includes("512x512")) || icons[icons.length - 1] || {};
-                const resolvedIconUrl = resolveUrl(bestIcon.src, baseUrl + "/icons/icon-512.png");
-
-                let resolvedStartUrl = "/";
-                if (webManifest.start_url) {
-                  try {
-                    const parsedStart = new URL(webManifest.start_url, baseUrl);
-                    resolvedStartUrl = parsedStart.pathname + parsedStart.search;
-                  } catch (_) {
-                    resolvedStartUrl = webManifest.start_url.startsWith("/")
-                      ? webManifest.start_url
-                      : "/" + webManifest.start_url;
-                  }
-                }
+                const resolvedIconUrl = resolveUrl(bestIcon.src, "https://kimsoju81.github.io/PB-Repot/icons/icon-512.png");
 
                 const twaManifest = {
                   packageId: "studio.ai.pbrepot.twa",
-                  host: targetHost,
+                  host: appHost,
                   name: webManifest.name || "PB-Repot",
                   launcherName: webManifest.short_name || "PB-Repot",
                   display: webManifest.display || "standalone",
@@ -145,7 +133,7 @@ jobs:
                   navigationDividerColorDark: "#000000",
                   backgroundColor: webManifest.background_color || "#ffffff",
                   enableNotifications: false,
-                  startUrl: resolvedStartUrl,
+                  startUrl: "/",
                   iconUrl: resolvedIconUrl,
                   maskableIconUrl: resolvedIconUrl,
                   splashScreenFadeOutDuration: 300,
@@ -166,7 +154,7 @@ jobs:
                   enableSiteSettingsShortcut: true,
                   isChromeOSOnly: false,
                   isMetaQuest: false,
-                  fullScopeUrl: baseUrl + "/",
+                  fullScopeUrl: appBaseUrl + "/",
                   minSdkVersion: 21,
                   orientation: webManifest.orientation || "default",
                   fingerprints: [],
@@ -175,7 +163,7 @@ jobs:
                 };
 
                 fs.writeFileSync("twa-manifest.json", JSON.stringify(twaManifest, null, 2));
-                console.log("Berjaya menjana twa-manifest.json untuk", targetHost);
+                console.log("Berjaya menjana twa-manifest.json untuk", appHost);
               });
             }).on("error", (err) => {
               console.error("Ralat rangkaian semasa mengambil manifest:", err.message);
