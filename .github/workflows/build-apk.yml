@@ -33,15 +33,11 @@ jobs:
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
           curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
           unzip -q cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
-          rm -f cmdline-tools.zip
-          if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" ]; then
-            rm -rf "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-            mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-          fi
-          chmod -R +x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin"
+          mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+          rm cmdline-tools.zip
 
-          (printf 'y\n%.0s' {1..50}) | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null 2>&1 || true
-          (printf 'y\n%.0s' {1..50}) | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" \
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" \
             "platform-tools" \
             "platforms;android-34" \
             "platforms;android-35" \
@@ -77,12 +73,11 @@ jobs:
       - name: Cipta konfigurasi Bubblewrap & Bina APK
         run: |
           set -e
-          SDK_DIR="$HOME/android-sdk"
           mkdir -p "$HOME/.bubblewrap"
           cat <<EOF > "$HOME/.bubblewrap/config.json"
           {
             "jdkPath": "${JAVA_HOME}",
-            "androidSdkPath": "${SDK_DIR}"
+            "androidSdkPath": "${ANDROID_SDK_ROOT}"
           }
           EOF
 
@@ -90,112 +85,55 @@ jobs:
           cd "$GITHUB_WORKSPACE/twa-project"
 
           node -e '
-            const fs = require("fs");
-            const path = require("path");
-            const zlib = require("zlib");
-
-            function crc32(buf) {
-              let c = 0xffffffff;
-              for (let i = 0; i < buf.length; i++) {
-                c ^= buf[i];
-                for (let k = 0; k < 8; k++) {
-                  c = (c >>> 1) ^ (c & 1 ? 0xedb88320 : 0);
-                }
-              }
-              return (c ^ 0xffffffff) >>> 0;
-            }
-
-            function chunk(type, data) {
-              const len = Buffer.alloc(4);
-              len.writeUInt32BE(data.length, 0);
-              const typeBuf = Buffer.from(type, "ascii");
-              const crcBuf = Buffer.alloc(4);
-              crcBuf.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])), 0);
-              return Buffer.concat([len, typeBuf, data, crcBuf]);
-            }
-
-            function makePng512() {
-              const size = 512;
-              const raw = Buffer.alloc(size * (1 + size * 4));
-              for (let y = 0; y < size; y++) {
-                const rowStart = y * (1 + size * 4);
-                raw[rowStart] = 0;
-                for (let x = 0; x < size; x++) {
-                  const px = rowStart + 1 + x * 4;
-                  const nx = x / size;
-                  const ny = y / size;
-                  const inBadge = nx >= 0.14 && nx <= 0.86 && ny >= 0.14 && ny <= 0.86;
-                  const inBarTop = inBadge && nx >= 0.28 && nx <= 0.72 && ny >= 0.30 && ny <= 0.40;
-                  const inBarMid = inBadge && nx >= 0.28 && nx <= 0.62 && ny >= 0.46 && ny <= 0.55;
-                  const inBarBot = inBadge && nx >= 0.28 && nx <= 0.72 && ny >= 0.61 && ny <= 0.70;
-                  if (inBarTop || inBarMid || inBarBot) {
-                    raw[px] = 255;
-                    raw[px + 1] = 255;
-                    raw[px + 2] = 255;
-                    raw[px + 3] = 255;
-                  } else {
-                    raw[px] = 0;
-                    raw[px + 1] = 31;
-                    raw[px + 2] = 63;
-                    raw[px + 3] = 255;
-                  }
-                }
-              }
-              const ihdr = Buffer.alloc(13);
-              ihdr.writeUInt32BE(size, 0);
-              ihdr.writeUInt32BE(size, 4);
-              ihdr[8] = 8;
-              ihdr[9] = 6;
-              ihdr[10] = 0;
-              ihdr[11] = 0;
-              ihdr[12] = 0;
-              return Buffer.concat([
-                Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-                chunk("IHDR", ihdr),
-                chunk("IDAT", zlib.deflateSync(raw)),
-                chunk("IEND", Buffer.alloc(0))
-              ]);
-            }
-
-            fs.writeFileSync(path.join(process.cwd(), "icon-512.png"), makePng512());
-          '
-
-          ICON_LOCAL_FILE="file://$GITHUB_WORKSPACE/twa-project/icon-512.png"
-
-          manifestUrl="https://kimsoju81.github.io/PB-Repot/manifest.json"
-
-          if [ ! -f "build.gradle" ] && [ ! -f "app/build.gradle" ]; then
-            printf "kimsoju81.github.io\n/PB-Repot/index.html\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" | bubblewrap init --manifest="$manifestUrl" --skipPwaValidation || true
-          fi
-
-          node -e '
             const https = require("https");
             const fs = require("fs");
 
-            const appHost = "pbrepot.ai.studio";
-            const appBaseUrl = "https://" + appHost;
-            const manifestUrl = "https://kimsoju81.github.io/PB-Repot/manifest.json";
-            const localIconUrl = process.env.ICON_LOCAL_FILE || "file://" + process.cwd() + "/icon-512.png";
+            const targetHost = "pbrepot.ai.studio";
+            const baseUrl = "https://" + targetHost;
+            const manifestUrl = baseUrl + "/manifest.json";
+
+            function resolveUrl(u, fallback) {
+              if (!u) return fallback;
+              if (u.startsWith("http://") || u.startsWith("https://")) return u;
+              if (u.startsWith("/")) return baseUrl + u;
+              return baseUrl + "/" + u;
+            }
 
             https.get(manifestUrl, (res) => {
+              if (res.statusCode !== 200) {
+                console.error("Gagal memuat turun manifest. HTTP Status:", res.statusCode);
+                process.exit(1);
+              }
               let data = "";
               res.on("data", chunk => data += chunk);
               res.on("end", () => {
                 let webManifest = {};
                 try {
                   webManifest = JSON.parse(data);
-                } catch (_) {}
-
-                let existing = {};
-                if (fs.existsSync("twa-manifest.json")) {
-                  try {
-                    existing = JSON.parse(fs.readFileSync("twa-manifest.json", "utf8"));
-                  } catch (_) {}
+                } catch (e) {
+                  console.error("Manifest bukan JSON yang sah:", e.message);
+                  process.exit(1);
                 }
 
-                const twaManifest = Object.assign({}, existing, {
+                const icons = Array.isArray(webManifest.icons) ? webManifest.icons : [];
+                const bestIcon = icons.find(i => i.sizes && i.sizes.includes("512x512")) || icons[icons.length - 1] || {};
+                const resolvedIconUrl = resolveUrl(bestIcon.src, baseUrl + "/icons/icon-512.png");
+
+                let resolvedStartUrl = "/";
+                if (webManifest.start_url) {
+                  try {
+                    const parsedStart = new URL(webManifest.start_url, baseUrl);
+                    resolvedStartUrl = parsedStart.pathname + parsedStart.search;
+                  } catch (_) {
+                    resolvedStartUrl = webManifest.start_url.startsWith("/")
+                      ? webManifest.start_url
+                      : "/" + webManifest.start_url;
+                  }
+                }
+
+                const twaManifest = {
                   packageId: "studio.ai.pbrepot.twa",
-                  host: appHost,
+                  host: targetHost,
                   name: webManifest.name || "PB-Repot",
                   launcherName: webManifest.short_name || "PB-Repot",
                   display: webManifest.display || "standalone",
@@ -207,16 +145,16 @@ jobs:
                   navigationDividerColorDark: "#000000",
                   backgroundColor: webManifest.background_color || "#ffffff",
                   enableNotifications: false,
-                  startUrl: "/",
-                  iconUrl: localIconUrl,
-                  maskableIconUrl: localIconUrl,
+                  startUrl: resolvedStartUrl,
+                  iconUrl: resolvedIconUrl,
+                  maskableIconUrl: resolvedIconUrl,
                   splashScreenFadeOutDuration: 300,
                   signingKey: {
                     path: process.env.GITHUB_WORKSPACE + "/android.keystore",
                     alias: "pbrepotkey"
                   },
-                  appVersionName: existing.appVersionName || "1.0.0",
-                  appVersionCode: existing.appVersionCode || 1,
+                  appVersionName: "1.0.0",
+                  appVersionCode: 1,
                   shortcuts: [],
                   generatorApp: "bubblewrap-cli",
                   webManifestUrl: manifestUrl,
@@ -228,70 +166,26 @@ jobs:
                   enableSiteSettingsShortcut: true,
                   isChromeOSOnly: false,
                   isMetaQuest: false,
-                  fullScopeUrl: appBaseUrl + "/",
+                  fullScopeUrl: baseUrl + "/",
                   minSdkVersion: 21,
                   orientation: webManifest.orientation || "default",
-                  fingerprints: existing.fingerprints || [],
+                  fingerprints: [],
                   additionalTrustedOrigins: [],
-                  retainedHashes: existing.retainedHashes || []
-                });
+                  retainedHashes: []
+                };
 
                 fs.writeFileSync("twa-manifest.json", JSON.stringify(twaManifest, null, 2));
-                console.log("Berjaya menjana twa-manifest.json untuk", appHost);
+                console.log("Berjaya menjana twa-manifest.json untuk", targetHost);
               });
-            }).on("error", () => {
-              const twaManifest = {
-                packageId: "studio.ai.pbrepot.twa",
-                host: appHost,
-                name: "PB-Repot",
-                launcherName: "PB-Repot",
-                display: "standalone",
-                themeColor: "#001F3F",
-                themeColorDark: "#001F3F",
-                navigationColor: "#ffffff",
-                navigationColorDark: "#000000",
-                navigationDividerColor: "#000000",
-                navigationDividerColorDark: "#000000",
-                backgroundColor: "#ffffff",
-                enableNotifications: false,
-                startUrl: "/",
-                iconUrl: localIconUrl,
-                maskableIconUrl: localIconUrl,
-                splashScreenFadeOutDuration: 300,
-                signingKey: {
-                  path: process.env.GITHUB_WORKSPACE + "/android.keystore",
-                  alias: "pbrepotkey"
-                },
-                appVersionName: "1.0.0",
-                appVersionCode: 1,
-                shortcuts: [],
-                generatorApp: "bubblewrap-cli",
-                webManifestUrl: manifestUrl,
-                fallbackType: "customtabs",
-                features: {},
-                alphaDependencies: {
-                  enabled: false
-                },
-                enableSiteSettingsShortcut: true,
-                isChromeOSOnly: false,
-                isMetaQuest: false,
-                fullScopeUrl: appBaseUrl + "/",
-                minSdkVersion: 21,
-                orientation: "default",
-                fingerprints: [],
-                additionalTrustedOrigins: [],
-                retainedHashes: []
-              };
-              fs.writeFileSync("twa-manifest.json", JSON.stringify(twaManifest, null, 2));
+            }).on("error", (err) => {
+              console.error("Ralat rangkaian semasa mengambil manifest:", err.message);
+              process.exit(1);
             });
           '
 
-          ls -la "$SDK_DIR" "$SDK_DIR/build-tools" "$SDK_DIR/platforms" || true
-
-          (printf 'y\n%.0s' {1..50}) | "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_DIR" --licenses >/dev/null 2>&1 || true
-
-          printf "1.0.0\n\n\n\n\n" | bubblewrap update --skipPwaValidation || true
-          printf "%s\n%s\n\n\n\n\n" "$KEYSTORE_PASS" "$KEYSTORE_PASS" | bubblewrap build --skipPwaValidation
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
+          bubblewrap update --skipPwaValidation
+          yes "$KEYSTORE_PASS" | bubblewrap build --skipPwaValidation
 
       - name: Muat Naik Fail APK sebagai Artifact
         uses: actions/upload-artifact@v4
