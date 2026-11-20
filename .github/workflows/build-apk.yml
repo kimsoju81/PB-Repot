@@ -33,11 +33,15 @@ jobs:
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
           curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
           unzip -q cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
-          mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-          rm cmdline-tools.zip
+          rm -f cmdline-tools.zip
+          if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" ]; then
+            rm -rf "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+            mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+          fi
+          chmod -R +x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin"
 
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" \
+          (printf 'y\n%.0s' {1..50}) | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null 2>&1 || true
+          (printf 'y\n%.0s' {1..50}) | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" \
             "platform-tools" \
             "platforms;android-34" \
             "platforms;android-35" \
@@ -73,11 +77,12 @@ jobs:
       - name: Cipta konfigurasi Bubblewrap & Bina APK
         run: |
           set -e
+          SDK_DIR="$HOME/android-sdk"
           mkdir -p "$HOME/.bubblewrap"
           cat <<EOF > "$HOME/.bubblewrap/config.json"
           {
             "jdkPath": "${JAVA_HOME}",
-            "androidSdkPath": "${ANDROID_SDK_ROOT}"
+            "androidSdkPath": "${SDK_DIR}"
           }
           EOF
 
@@ -87,7 +92,7 @@ jobs:
           manifestUrl="https://kimsoju81.github.io/PB-Repot/manifest.json"
 
           if [ ! -f "build.gradle" ] && [ ! -f "app/build.gradle" ]; then
-            printf "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" | bubblewrap init --manifest="$manifestUrl" --skipPwaValidation || true
+            printf "kimsoju81.github.io\n/PB-Repot/index.html\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" | bubblewrap init --manifest="$manifestUrl" --skipPwaValidation || true
           fi
 
           node -e '
@@ -184,12 +189,9 @@ jobs:
             });
           '
 
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
+          (printf 'y\n%.0s' {1..50}) | "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_DIR" --licenses >/dev/null 2>&1 || true
 
-          export BUBBLEWRAP_KEYSTORE_PASSWORD="$KEYSTORE_PASS"
-          export BUBBLEWRAP_KEY_PASSWORD="$KEYSTORE_PASS"
-
-          printf "\n\n\n\n\n\n\n\n\n\n" | bubblewrap update --skipPwaValidation || true
+          printf "1.0.0\n\n\n\n\n" | bubblewrap update --skipPwaValidation || true
           printf "%s\n%s\n\n\n\n\n" "$KEYSTORE_PASS" "$KEYSTORE_PASS" | bubblewrap build --skipPwaValidation
 
       - name: Muat Naik Fail APK sebagai Artifact
