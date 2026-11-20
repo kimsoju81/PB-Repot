@@ -54,11 +54,21 @@ jobs:
       - name: Sediakan Keystore Tandatangan APK
         run: |
           set -e
+          KEYSTORE_PASS="${{ secrets.PBREPOT_KEYSTORE_PASSWORD || 'pbrepot123' }}"
           if [ -n "${{ secrets.PBREPOT_KEYSTORE_BASE64 }}" ]; then
             echo "${{ secrets.PBREPOT_KEYSTORE_BASE64 }}" | base64 -d > "$GITHUB_WORKSPACE/android.keystore"
           else
-            keytool -genkeypair -v -keystore "$GITHUB_WORKSPACE/android.keystore" -alias pbrepotkey -keyalg RSA -keysize 2048 -validity 10000 -storepass pbrepot123 -keypass pbrepot123 -dname "CN=PB-Repot, OU=Development, O=PB-Repot, L=Melaka, ST=Melaka, C=MY"
+            keytool -genkeypair -v \
+              -keystore "$GITHUB_WORKSPACE/android.keystore" \
+              -alias pbrepotkey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass "$KEYSTORE_PASS" \
+              -keypass "$KEYSTORE_PASS" \
+              -dname "CN=PB-Repot, OU=Polis Bantuan, O=PB-Repot, L=Melaka, ST=Melaka, C=MY"
           fi
+          echo "KEYSTORE_PASS=$KEYSTORE_PASS" >> "$GITHUB_ENV"
 
       - name: Cipta konfigurasi Bubblewrap & Bina APK
         run: |
@@ -77,16 +87,53 @@ jobs:
           node -e '
             const https = require("https");
             const fs = require("fs");
-            const manifestUrl = "https://kimsoju81.github.io/PB-Repot/manifest.json";
+
+            const targetHost = "pbrepot.ai.studio";
+            const baseUrl = "https://" + targetHost;
+            const manifestUrl = baseUrl + "/manifest.json";
+
+            function resolveUrl(u, fallback) {
+              if (!u) return fallback;
+              if (u.startsWith("http://") || u.startsWith("https://")) return u;
+              if (u.startsWith("/")) return baseUrl + u;
+              return baseUrl + "/" + u;
+            }
 
             https.get(manifestUrl, (res) => {
+              if (res.statusCode !== 200) {
+                console.error("Gagal memuat turun manifest. HTTP Status:", res.statusCode);
+                process.exit(1);
+              }
               let data = "";
               res.on("data", chunk => data += chunk);
               res.on("end", () => {
-                const webManifest = JSON.parse(data);
+                let webManifest = {};
+                try {
+                  webManifest = JSON.parse(data);
+                } catch (e) {
+                  console.error("Manifest bukan JSON yang sah:", e.message);
+                  process.exit(1);
+                }
+
+                const icons = Array.isArray(webManifest.icons) ? webManifest.icons : [];
+                const bestIcon = icons.find(i => i.sizes && i.sizes.includes("512x512")) || icons[icons.length - 1] || {};
+                const resolvedIconUrl = resolveUrl(bestIcon.src, baseUrl + "/icons/icon-512.png");
+
+                let resolvedStartUrl = "/";
+                if (webManifest.start_url) {
+                  try {
+                    const parsedStart = new URL(webManifest.start_url, baseUrl);
+                    resolvedStartUrl = parsedStart.pathname + parsedStart.search;
+                  } catch (_) {
+                    resolvedStartUrl = webManifest.start_url.startsWith("/")
+                      ? webManifest.start_url
+                      : "/" + webManifest.start_url;
+                  }
+                }
+
                 const twaManifest = {
-                  packageId: "org.kimsoju81.pbrepot.twa",
-                  host: "kimsoju81.github.io",
+                  packageId: "studio.ai.pbrepot.twa",
+                  host: targetHost,
                   name: webManifest.name || "PB-Repot",
                   launcherName: webManifest.short_name || "PB-Repot",
                   display: webManifest.display || "standalone",
@@ -98,9 +145,9 @@ jobs:
                   navigationDividerColorDark: "#000000",
                   backgroundColor: webManifest.background_color || "#ffffff",
                   enableNotifications: false,
-                  startUrl: webManifest.start_url || "/PB-Repot/",
-                  iconUrl: "https://kimsoju81.github.io/PB-Repot/icons/icon-512.png",
-                  maskableIconUrl: "https://kimsoju81.github.io/PB-Repot/icons/icon-512.png",
+                  startUrl: resolvedStartUrl,
+                  iconUrl: resolvedIconUrl,
+                  maskableIconUrl: resolvedIconUrl,
                   splashScreenFadeOutDuration: 300,
                   signingKey: {
                     path: process.env.GITHUB_WORKSPACE + "/android.keystore",
@@ -119,28 +166,29 @@ jobs:
                   enableSiteSettingsShortcut: true,
                   isChromeOSOnly: false,
                   isMetaQuest: false,
-                  fullScopeUrl: "https://kimsoju81.github.io/PB-Repot/",
+                  fullScopeUrl: baseUrl + "/",
                   minSdkVersion: 21,
                   orientation: webManifest.orientation || "default",
                   fingerprints: [],
                   additionalTrustedOrigins: [],
                   retainedHashes: []
                 };
+
                 fs.writeFileSync("twa-manifest.json", JSON.stringify(twaManifest, null, 2));
-                console.log("Berjaya menjana twa-manifest.json");
+                console.log("Berjaya menjana twa-manifest.json untuk", targetHost);
               });
             }).on("error", (err) => {
-              console.error("Gagal memuat turun manifest:", err.message);
+              console.error("Ralat rangkaian semasa mengambil manifest:", err.message);
               process.exit(1);
             });
           '
 
           yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
           bubblewrap update --skipPwaValidation
-          bubblewrap build --skipPwaValidation
+          yes "$KEYSTORE_PASS" | bubblewrap build --skipPwaValidation
 
       - name: Muat Naik Fail APK sebagai Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PB-Repot-Android-APK
+          name: PB-Repot-AIStudio-APK
           path: twa-project/**/*.apk
