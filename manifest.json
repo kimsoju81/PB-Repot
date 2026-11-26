@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Polis Bantuan UTeM - Sistem Dokumen & Laporan",
+  "name": "Polis Bantuan - Sistem Dokumen & Laporan",
   "short_name": "PBreport",
-  "description": "Aplikasi pengurusan rekod dan dokumen rasmi Polis Bantuan Universiti Teknikal Malaysia Melaka (UTeM) merangkumi Buku Poket Polima, Laporan Formal, Repot Polis Bantuan, Buku Station Diary dan Perpustakaan Rujukan.",
+  "description": "Aplikasi pengurusan rekod dan dokumen rasmi Polis Bantuan merangkumi Buku Poket Polima, Laporan Formal, Repot Polis Bantuan, Buku Station Diary dan Perpustakaan Rujukan.",
   "lang": "ms-MY",
   "dir": "ltr",
   "start_url": "/",
@@ -44,7 +44,7 @@
     {
       "platform": "webapp",
       "url": "https://ais-pre-2dx6byvtrimhh4xn4jfsys-91300137923.asia-southeast1.run.app/manifest.json",
-      "id": "my.edu.utem.pbreport"
+      "id": "my.pb.pbreport"
     }
   ],
   "scope_extensions": [
@@ -99,7 +99,7 @@
       "sizes": "720x1280",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Menu Utama PBreport Polis Bantuan UTeM"
+      "label": "Menu Utama PBreport Polis Bantuan"
     },
     {
       "src": "/screenshots/mobile-polima.png",
